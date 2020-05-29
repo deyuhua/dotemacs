@@ -1,0 +1,528 @@
+#+BEGIN_SRC emacs-lisp
+  (require 'package)
+  (setq package-enable-at-startup nil)
+
+  (defun @-setup-package-repos ()
+    (progn
+      (defun @-set-repo-when-missing (name repo)
+	(unless (assoc-default name package-archives)
+	  (add-to-list 'package-archives (cons name repo))))
+
+      (let ((repos
+	     '(("melpa" . "http://mirrors.tuna.tsinghua.edu.cn/elpa/melpa/")
+	       ("org" . "http://mirrors.tuna.tsinghua.edu.cn/elpa/org/")
+	       ("marmalade" . "http://mirrors.tuna.tsinghua.edu.cn/elpa/marmalade/")
+	       ("gnu" . "http://mirrors.tuna.tsinghua.edu.cn/elpa/gnu/")))
+	    _)
+	(dolist (pair repos _)
+	  (progn
+	    (@-set-repo-when-missing (car pair) (cdr pair))
+	    )))
+
+      (package-initialize)
+      ))
+
+  (defun @-setup-package-installer ()
+    (progn
+      (unless (package-installed-p 'use-package)
+	(package-refresh-contents)
+	(package-install 'use-package))
+
+      (eval-when-compile
+	(require 'use-package))
+
+      (setq use-package-verbose t
+	    use-package-always-ensure t
+	    warning-minimum-level :emergency)
+      ))
+
+  (defun @-setup-macos-hack ()
+    (cond ((string-equal system-type "darwin")
+	   (progn
+	     ;; batter copy and paste support for mac os x
+	     (defun @-copy-from-osx ()
+	       (shell-command-to-string "pbpaste"))
+
+	     (defun @-paste-to-osx (text &optional push)
+	       (let ((process-connection-type nil))
+		 (let ((proc (start-process "pbcopy" "*Messages*" "pbcopy")))
+		   (process-send-string proc text)
+		   (process-send-eof proc))))
+
+	     ;; modify option and command key
+	     (setq mac-command-modifier 'control)
+	     (setq mac-option-modifier 'meta)
+
+	     (setq interprogram-cut-function '@-paste-to-osx)
+	     (setq interprogram-paste-function '@-copy-from-osx)
+
+	     (use-package exec-path-from-shell)
+	     (when (memq window-system '(mac ns x))
+	       (exec-path-from-shell-initialize))
+
+	     (message "Wellcome To Mac OS X, Have A Nice Day!!!")))))
+
+  (defun @-setup-global-mode ()
+    (progn
+      (display-time-mode 1)
+      (column-number-mode 1)
+      (show-paren-mode nil)
+      (display-battery-mode 1)
+      (tool-bar-mode -1)
+      (menu-bar-mode -1)
+      (global-auto-revert-mode t)
+      (global-hl-line-mode nil)
+      (fset 'yes-or-no-p 'y-or-n-p)
+      (toggle-frame-fullscreen)
+
+      (setq tab-width 4
+	inhibit-splash-screen t
+	initial-scratch-message nil
+	sentence-end-double-space nil
+	make-backup-files nil
+	indent-tabs-mode nil
+	make-backup-files nil
+	auto-save-default nil
+	create-lockfiles nil)    
+
+      (savehist-mode 1)
+      (setq savehist-file "~/.emacs.d/.savehist")
+      (setq history-length t)
+      (setq history-delete-duplicates t)
+      (setq savehist-save-minibuffer-history 1)
+      (setq savehist-additional-variables
+	    '(kill-ring
+	      search-ring
+	      regexp-search-ring))
+      ))
+
+  (defun @-setup-vendor-package ()
+    (progn
+      (add-to-list 'load-path (expand-file-name "~/.emacs.d/vendor"))
+
+      ;; gc magic hack
+      (require 'gcmh)))
+
+  (@-setup-vendor-package)
+  (@-setup-package-repos)
+  (@-setup-package-installer)
+  (@-setup-macos-hack)
+  (@-setup-global-mode)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  (defun @-setup-editor-theme ()
+    (progn
+      (setq custom-safe-themes t)
+      (if (display-graphic-p)
+	  (progn
+	    (use-package doom-theme
+	      :config
+	      (setq doom-themes-enable-bold t
+		    doom-themes-enable-italic t)
+	      (doom-themes-visual-bell-config)
+	      (doom-themes-visual-bell-config))	
+	    (if (string-equal system-type "darwin")
+		(load-theme 'doom-dracula)
+	      (load-theme 'doom-nord)))
+	(progn
+	  (use-package darkokai-theme)
+	  (load-theme 'darkokai)))
+      ))
+
+  (defun @-setup-editor-face ()
+    (progn
+      (let ((display-table (or standard-display-table (make-display-table))))
+	(set-display-table-slot display-table 'vertical-border (make-glyph-code ?│)) ; or ┃ │
+	(setq standard-display-table display-table))
+      (set-face-background 'vertical-border (face-background 'default))
+      (set-face-foreground 'vertical-border "color-237")
+      ))
+
+  (use-package rainbow-mode
+    :init
+    (defun @-enable-rainbow ()
+      (rainbow-mode t))
+    :hook ((prog-mode-hook . @-enable-reainbow))
+    )
+
+  (use-package rainbow-delimiters
+    :init
+    (defun @-enable-rainbow-delimiters ()
+      (rainbow-delimiters-mode t))
+    :hook ((prog-mode-hook . @-enable-rainbow-delimiters))
+    )
+
+  (use-package doom-modeline
+    :ensure t
+    :init
+    (set-face-background 'mode-line nil)
+    :hook (after-init . doom-modeline-mode))
+
+  (@-setup-editor-theme)
+  (@-setup-editor-face)
+#+END_SRC
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package helm-swoop)
+  (use-package helm
+    :ensure t
+    :config
+    (require 'helm-config)
+    :bind
+    (("C-c s" . helm-swoop)
+     ("C-x C-f" . helm-find-files)
+     ("C-x b" . helm-buffers-list)
+     ("M-y" . helm-show-kill-ring)
+     ("M-x" . helm-M-x)))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+  (use-package ido-completing-read+)
+  (defun @-insert-src-block (src-code-type)
+    "Insert a `SRC-CODE-TYPE' type source code block in org-mode."
+    (interactive
+     (let ((src-code-types
+	    '("emacs-lisp" "python" "C" "sh" "java" "js" "clojure" "C++" "css"
+	      "calc" "asymptote" "dot" "gnuplot" "ledger" "lilypond" "mscgen"
+	      "octave" "oz" "plantuml" "R" "sass" "screen" "sql" "awk" "ditaa"
+	      "haskell" "latex" "lisp" "matlab" "ocaml" "org" "perl" "ruby"
+	      "scheme" "sqlite" "html" "go")))
+       (list (ido-completing-read+ "Source code type: " src-code-types))))
+    (progn
+      (newline-and-indent)
+      (insert (format "\n#+BEGIN_SRC %s\n" src-code-type))
+      (newline-and-indent)
+      (insert "#+END_SRC\n")
+      (previous-line 2)
+      (org-edit-src-code)))
+#+END_SRC
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package undo-tree
+    :ensure t
+    :config
+    (global-undo-tree-mode)
+    (setq undo-tree-visualizer-timestamps t)
+    (setq undo-tree-visualizer-diff t))
+
+  (use-package company
+    :ensure t
+    :config
+    (global-company-mode))
+
+  (use-package which-key
+    :ensure t
+    :config
+    (which-key-mode)
+    (which-key-setup-side-window-bottom))
+
+  (use-package recentf
+    :ensure t
+    :config
+    (setq recentf-max-saved-items 200
+	  recentf-max-menu-items 15)
+    :bind ("<f3>" . helm-recentf)
+    :hook ((after-init-hook . recentf-mode)))
+
+  (use-package linum
+    :ensure t
+    :config
+    (global-linum-mode t)
+    (setq linum-format "%4d  ")
+    (set-face-background 'linum nil))
+
+  (use-package autopair
+    :ensure t
+    :config
+    (autopair-global-mode))
+
+  (use-package neotree
+    :custom
+    (neo-theme 'nerd2)
+    :config
+    (setq neo-smart-open t)
+    (setq neo-theme (if (display-graphic-p) 'icons 'nerd))
+    (setq neo-window-fixed-size nil)
+    (setq-default neo-show-hidden-files nil)
+    (global-set-key [f2] 'neotree-toggle)
+    (global-set-key [f8] 'neotree-dir))
+
+  (use-package magit)
+  (use-package git-gutter+
+    :config
+    (global-git-gutter+-mode))
+
+  (use-package smart-tab
+    :hook ((prog-mode-hook . smart-tab-mode)))
+
+  (use-package mwim
+    :bind
+    ("C-a" . mwim-beginning-of-code-or-line)
+    ("C-e" . mwim-end-of-code-or-line))
+
+  (use-package guru-mode
+    :config
+    (guru-global-mode +1))
+
+  (use-package projectile)
+  (use-package helm-projectile)
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package lsp-mode
+    :commands lsp
+    :ensure t
+    :custom
+    (lsp-enable-snippet t)
+    (lsp-keep-workspace-alive t)
+    (lsp-enable-xref t)
+    (lsp-enable-imenu t)
+    (lsp-enable-completion-at-point nil)
+    (lsp-enable-file-watchers nil)
+    (lsp-diagnostic-package :flymake)
+    (lsp-prefer-capf t)
+    (lsp-auto-guess-root t)
+    (read-process-output-max (* 1024 1024))
+    :config
+    ;; setup prog mode hook
+    (add-hook 'go-mode-hook #'lsp)
+    (add-hook 'python-mode-hook #'lsp)
+    (add-hook 'c++-mode-hook #'lsp)
+    (add-hook 'c-mode-hook #'lsp)
+    (add-hook 'rust-mode-hook #'lsp)
+    (add-hook 'html-mode-hook #'lsp)
+    (add-hook 'js-mode-hook #'lsp)
+    (add-hook 'typescript-mode-hook #'lsp)
+    (add-hook 'json-mode-hook #'lsp)
+    (add-hook 'yaml-mode-hook #'lsp)
+    (add-hook 'dockerfile-mode-hook #'lsp)
+    (add-hook 'shell-mode-hook #'lsp)
+    (add-hook 'css-mode-hook #'lsp)
+
+    (setq company-minimum-prefix-length 1
+	  company-idle-delay 0.200)
+
+    (require 'lsp-clients)
+    (lsp-register-client
+     (make-lsp-client :new-connection (lsp-stdio-connection "gopls")
+		      :major-modes '(go-mode)
+		      :server-id 'gopls))
+    (lsp-define-stdio-client lsp-python "python"
+			     #'projectile-project-root
+			     '("pyls"))
+    )
+
+  ;; (use-package company-lsp
+  ;;   :ensure t
+  ;;   :config
+  ;;   (push 'company-lsp company-backends))
+
+  (use-package lsp-ui
+    :hook (lsp-mode . lsp-ui-mode)
+    :config
+    (setq lsp-ui-doc-max-height 8
+	  lsp-ui-doc-max-width 35
+	  lsp-ui-sideline-ignore-duplicate t
+	  ;; lsp-ui-doc is redundant with and more invasive than
+	  ;; `+lookup/documentation'
+	  lsp-ui-doc-enable nil
+	  ;; Don't show symbol definitions in the sideline. They are pretty noisy,
+	  ;; and there is a bug preventing Flycheck errors from being shown (the
+	  ;; errors flash briefly and then disappear).
+	  lsp-ui-sideline-show-hover nil)
+
+    (set-lookup-handlers! 'lsp-ui-mode :async t
+	:definition 'lsp-ui-peek-find-definitions
+	:implementations 'lsp-ui-peek-find-implementation
+	:references 'lsp-ui-peek-find-references))
+
+  (use-package helm-lsp
+    :commands helm-lsp-workspace-symbol helm-lsp-global-workspace-symbol)
+
+  (use-package dap-mode
+    :init
+    (defun @-dap-hydra-hook ()
+      (call-interactively #'dap-hydra))
+    :config
+    (dap-mode 1)
+    (dap-ui-mode 1)
+    (dap-tooltip-mode 1)
+    (tooltip-mode 1)
+    :hook ((dap-stopped-hook . @-dap-hydra-hook)))
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package go-mode
+    :mode "\\.go\\'"
+    :init
+    (setq gofmt-command "goimports")
+    (defun @-gofmat-when-save ()
+      (if (equal major-mode 'go-mode)
+	  (gofmt-before-save)))
+    :config
+    (when (memq window-system '(mac ns))
+      (use-package exec-path-from-shell)
+      (exec-path-from-shell-initialize)
+      (exec-path-from-shell-copy-env "GOPATH"))
+    (add-hook 'before-save-hook '@-gofmat-when-save)
+    :hook ((go-mode . lsp)))
+
+  (use-package go-eldoc
+    :hook ((gp-mode-hook . go-eldoc-setup)))
+
+  (use-package go-guru
+    :hook (go-mode . go-guru-hl-identifier-mode))
+
+  (use-package go-dlv)
+#+END_SRC
+
+
+
+#+BEGIN_SRC sh
+  go get -u -v golang.org/x/tools/cmd/...
+  go get -u -v github.com/rogpeppe/godef
+  go get -u -v golang.org/x/tools/cmd/goimports
+  go get -u -v golang.org/x/tools/gopls
+  go get -u -v github.com/mdempsky/gocode
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package py-isort)
+  (use-package python
+    :init
+    (defun @-python-code-format()
+      (if (equal major-mode 'python-mode)
+	  (progn
+	    (python-black-buffer)
+	    (py-isort-buffer)
+	    )))
+    :mode ("\\.py" . python-mode)
+    :hook ((python-mode . lsp)
+	   (before-save-hook . @-pythoncode-format))
+    :config
+    (add-hook 'before-save-hook #'@-python-code-format)
+    :ensure t)
+
+  ;; (use-package jedi
+    ;; :config
+    ;; (add-hook 'python-mode-hook 'jedi:setup))
+
+  ;; (use-package lsp-python-ms
+  ;;   :ensure t
+  ;;   :hook (python-mode . (lambda ()
+  ;; 			 (require 'lsp-python-ms)
+  ;; 			 (lsp)))
+  ;;   :init
+  ;;   (setq lsp-python-ms-executable (concat EMACS_ROOT "lsp/python-language-server/output/bin/Release/osx-x64/publish/Microsoft.Python.LanguageServer")))
+
+  (use-package pyvenv)
+
+  (use-package python-black
+    :demand t
+    :after python
+    :config
+    (python-black-on-save-mode))
+
+  (use-package pyenv-mode
+    :init
+    (add-to-list 'exec-path "~/.pyenv/shims")
+    (setenv "WORKON_HOME" "~/.pyenv/versions/")
+    :config
+    (pyenv-mode))
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package ccls
+    :ensure t
+    :config
+    (setq ccls-executable "ccls"))
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package emmet-mode)
+  (use-package web-beautify)
+  ;; typescirpt tide
+  (use-package typescript-mode)
+
+  (use-package tide
+    :ensure t
+    :after (typescript-mode company flycheck)
+    :hook ((typescript-mode . tide-setup)
+	   (typescript-mode . tide-hl-identifier-mode)
+	   (before-save . tide-format-before-save)))
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package plantuml-mode
+    :custom
+    (plantuml-jar-path (concat EMACS_ROOT "plantuml.jar"))
+    :mode "\\.uml\\'")
+
+  (use-package json-mode
+    :hook ((json-mode . lsp)))
+  (use-package yaml-mode
+    :hook ((yaml-mode . lsp)))
+  (use-package dockerfile-mode
+    :hook ((dockerfile-mode . lsp)))
+  (use-package protobuf-mode
+    :hook ((protobuf-mode . lsp)))
+#+END_SRC
+
+
+
+#+BEGIN_SRC emacs-lisp
+  (defun @-close-all-buffers ()
+    (interactive)
+    (mapc 'kill-buffer (buffer-list)))
+
+  (defun @-minify-buffer-contents()
+    (interactive)
+    (mark-whole-buffer)
+    (goto-char (point-min))
+    (while (search-forward-regexp "[\s\n]*" nil t) (replace-match "" nil t)))
+
+  (defun @-copy-file-name-to-clipboard ()
+    "Copy the current buffer file name to the clipboard."
+    (interactive)
+    (let ((filename (if (equal major-mode 'dired-mode)
+			default-directory
+		      (buffer-file-name))))
+      (when filename
+	(kill-new filename)
+	(message "Copied buffer file name '%s' to the clipboard." filename))))
+#+END_SRC
+
+
+#+BEGIN_SRC emacs-lisp
+  (global-set-key (kbd "C-\\") 'comment-line)
+  ;; F1 for tmux
+  ;; F2 neotree toggle
+  (global-set-key (kbd "<f3>") 'helm-recentf)
+  (global-set-key (kbd "<f4>") 'fiplr-find-file)
+  (global-set-key (kbd "<f5>") 'grep-find)
+  (global-set-key (kbd "<f6>") 'goto-line)
+
+  ;; F8 neotree-dir
+  (global-set-key (kbd "<f9>") 'bookmark-jump)
+  (global-set-key (kbd "<f10>") 'helm-M-x)
+  (global-set-key (kbd "<f12>") 'helm-projectile-find-file)
+
+  (global-set-key (kbd "M-0") 'next-multiframe-window)
+  (global-set-key (kbd "M-9") 'previous-multiframe-window)
+#+END_SRC
+
